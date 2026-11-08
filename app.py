@@ -51,15 +51,32 @@ h1 { font-weight: 700; letter-spacing: -0.5px; }
 
 /* inputs */
 div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="select"] > div {
-    background: rgba(255,255,255,.18) !important;
-    border: 1px solid rgba(255,255,255,.38) !important;
+    background: rgba(255,255,255,.62) !important;
+    border: 1px solid rgba(255,255,255,.75) !important;
     border-radius: 14px !important;
 }
-input { color: #fff !important; -webkit-text-fill-color: #fff !important; }
-input::placeholder { color: rgba(255,255,255,.55) !important; }
+/* typed text in black */
+input, textarea {
+    color: #000 !important;
+    -webkit-text-fill-color: #000 !important;
+    caret-color: #000 !important;
+}
+input::placeholder, textarea::placeholder {
+    color: rgba(0,0,0,.45) !important;
+    -webkit-text-fill-color: rgba(0,0,0,.45) !important;
+}
+/* number-input +/- buttons */
+div[data-baseweb="input"] button { background: transparent !important; }
+div[data-baseweb="input"] button svg { fill: #000 !important; color: #000 !important; }
+/* dropdown (selected value, arrow, and the opened menu) */
+div[data-baseweb="select"] * { color: #000 !important; -webkit-text-fill-color: #000 !important; }
+div[data-baseweb="select"] svg { fill: #000 !important; }
+[data-baseweb="popover"] ul, [data-baseweb="popover"] li {
+    background: #fff !important; color: #000 !important;
+}
+[data-baseweb="popover"] li:hover { background: #e8f1ff !important; }
 label p { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase;
-          color: rgba(255,255,255,.78) !important; }
-div[data-baseweb="select"] * { color: #fff !important; }
+          color: rgba(255,255,255,.9) !important; }
 
 /* buttons */
 .stButton > button, .stDownloadButton > button, [data-testid="stFormSubmitButton"] > button {
