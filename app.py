@@ -8,12 +8,65 @@ Run locally:   streamlit run app.py
 """
 
 import io
+import math
 
 import streamlit as st
+import yfinance as yf
 
 from excel_builder import build_workbook
 
 COMPOUNDING = {"Annually": 1, "Semi-annually": 2, "Quarterly": 4, "Monthly": 12}
+EXCHANGES = ["Australia (ASX)", "US / exactly as typed"]
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def lookup_price(symbol, exchange):
+    """Fetch the latest price from Yahoo Finance.
+
+    Returns (yahoo_symbol, price, currency). Raises ValueError if nothing is found.
+    ASX tickers need a '.AX' suffix on Yahoo, so it is added automatically when
+    the Australia option is chosen. Prices can be delayed by ~15 minutes.
+    """
+    yahoo_symbol = symbol
+    if exchange == EXCHANGES[0] and "." not in symbol:
+        yahoo_symbol = f"{symbol}.AX"
+
+    try:
+        ticker = yf.Ticker(yahoo_symbol)
+        price, currency = None, None
+        try:
+            info = ticker.fast_info
+            price = info.get("last_price")
+            currency = info.get("currency")
+        except Exception:
+            pass
+        if price is None or (isinstance(price, float) and math.isnan(price)) or price <= 0:
+            history = ticker.history(period="5d")
+            closes = history["Close"].dropna() if not history.empty else []
+            price = float(closes.iloc[-1]) if len(closes) else None
+    except Exception as err:
+        raise ValueError("Could not reach the price service. Please enter the price manually.") from err
+
+    if price is None or price <= 0:
+        raise ValueError(f"No price found for {yahoo_symbol}. Check the ticker and exchange, "
+                         "or enter the price manually.")
+    return yahoo_symbol, float(price), currency or ""
+
+
+def fetch_price():
+    """Button callback: look up the price and place it in the price box."""
+    symbol = st.session_state.get("ticker", "").strip().upper()
+    if not symbol or not symbol.replace(".", "").replace("-", "").isalnum():
+        st.session_state["price_msg"] = ("err", "Enter a valid ticker first (e.g. ATOM).")
+        return
+    try:
+        yahoo_symbol, price, currency = lookup_price(symbol, st.session_state.get("exchange", EXCHANGES[0]))
+    except ValueError as err:
+        st.session_state["price_msg"] = ("err", str(err))
+        return
+    st.session_state["price"] = round(price, 4)
+    st.session_state["price_msg"] = (
+        "ok", f"{yahoo_symbol}: {price:,.4f} {currency}".strip() + " (latest available, may be delayed)")
 
 st.set_page_config(page_title="Investment Projection", page_icon="📈", layout="centered")
 
@@ -114,11 +167,20 @@ st.write("See how your money could compound, then download it as an Excel file."
 # ----------------------------------------------------------------------
 # Form
 # ----------------------------------------------------------------------
+t1, t2 = st.columns([3, 2])
+t1.text_input("Stock ticker", placeholder="e.g. ATOM", key="ticker")
+t2.selectbox("Exchange", EXCHANGES, key="exchange")
+st.button("Get live price", on_click=fetch_price)
+
+msg = st.session_state.get("price_msg")
+if msg:
+    (st.success if msg[0] == "ok" else st.error)(msg[1])
+
 with st.form("inputs"):
-    ticker = st.text_input("Stock ticker", placeholder="e.g. ATOM")
     c1, c2 = st.columns(2)
     price = c1.number_input("Current price ($)", min_value=0.0, value=None,
-                            placeholder="Current price", format="%.4f")
+                            placeholder="Current price (or tap Get live price)",
+                            format="%.4f", key="price")
     amount = c2.number_input("Investing today ($)", min_value=0.0, value=None,
                              placeholder="Amount to invest", format="%.2f")
     c3, c4 = st.columns(2)
@@ -130,7 +192,7 @@ with st.form("inputs"):
     submitted = st.form_submit_button("Generate Excel Report")
 
 if submitted:
-    clean = ticker.strip().upper()
+    clean = st.session_state.get("ticker", "").strip().upper()
     problems = []
     if not clean or not clean.replace(".", "").replace("-", "").isalnum():
         problems.append("Enter a valid ticker (e.g. ATOM, AAPL, CBA.AX).")
